@@ -9,13 +9,25 @@ class Dump:
         self.verbose = 1
         self.path = path
         self.lines = []
+        self._labels = set()
         self._decls_by_type = {}
         self._all_decls = {}
         with open(path) as f:
             for line in f:
                 self.lines.append(line)
+        self._find_labels()
         self._find_decls()
         self._remap_decls()
+
+    def _find_labels(self):
+        for line in self.lines:
+            m = re.match('^(\S+):$', line)
+            if m:
+                if self.verbose:
+                    print('LABEL: %s' % m.group(1))
+                self._labels.add(m.group(1))
+        if self.verbose:
+            pprint(self._labels)
 
     def _find_decls(self):
         for line in self.lines:
@@ -25,6 +37,9 @@ class Dump:
                     print('DECL: %s' % (m.groups(),))
                 type_, prefix, num = m.groups()
                 num = int(num)
+                old_decl = '%s_%i' % (prefix, num)
+                if old_decl in self._labels:
+                    continue
                 if type_ not in self._decls_by_type:
                     self._decls_by_type[type_] = {}
                 if prefix not in self._decls_by_type[type_]:
@@ -41,18 +56,23 @@ class Dump:
                 print('OLD LINE: %s' % repr(line))
 
             # Look for uses of decls
-            for m in list(re.finditer('\s*(\S*)_([0-9]+)', line)):
+            for m in list(re.finditer('\s*([_A-Za-z0-9]*)_([0-9]+)', line)):
                 if self.verbose:
                     print('MATCH: %s' % (m.groups(),))
                 prefix = m.group(1)
                 num = int(m.group(2))
+                old_decl = '%s_%i' % (prefix, num)
+                if old_decl in self._labels:
+                    if self.verbose:
+                        print('skipping label: %s' % old_decl)
+                    continue
                 if prefix not in self._all_decls:
                     self._all_decls[prefix] = {}
                 if num not in self._all_decls[prefix]:
                     # Renumber in order of appearance, starting at 0:
                     self._all_decls[prefix][num] = len(self._all_decls[prefix])
                 newnum = self._all_decls[prefix][num]
-                line = line.replace('%s_%i' % (prefix, num),
+                line = line.replace(old_decl,
                                     '%s_%i' % (prefix, newnum))
                 if self.verbose:
                     print('NEW LINE: %s' % repr(line))
