@@ -81,12 +81,12 @@ class Dump:
 
 def load_dump(path):
     d = Dump(path)
-    pprint(d._decls_by_type)
-    pprint(d._all_decls)
+    if 0:
+        pprint(d._decls_by_type)
+        pprint(d._all_decls)
     return d
 
 def main(argv):
-    print(argv)
     dumpA = load_dump(sys.argv[1])
     dumpB = load_dump(sys.argv[2])
     for line in difflib.unified_diff(dumpA.lines,
