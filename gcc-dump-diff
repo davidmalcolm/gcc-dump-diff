@@ -6,53 +6,58 @@ import sys
 
 class Dump:
     def __init__(self, path):
+        self.verbose = 1
         self.path = path
         self.lines = []
         self._decls_by_type = {}
         self._all_decls = {}
-        self._seen_all_decls = False
         with open(path) as f:
             for line in f:
-                self._on_line(line)
+                self.lines.append(line)
+        self._find_decls()
+        self._remap_decls()
 
-    def _on_line(self, line):
-        print('OLD LINE: %s' % repr(line))
+    def _find_decls(self):
+        for line in self.lines:
+            m = re.match('^\s*(.*?)\s*(\S*)_([0-9]+);$', line)
+            if m:
+                if self.verbose:
+                    print('DECL: %s' % (m.groups(),))
+                type_, prefix, num = m.groups()
+                num = int(num)
+                if type_ not in self._decls_by_type:
+                    self._decls_by_type[type_] = {}
+                if prefix not in self._decls_by_type[type_]:
+                    self._decls_by_type[type_][prefix] = {}
+                newnum = len(self._decls_by_type[type_][prefix])
+                self._decls_by_type[type_][prefix][num] = newnum
+                if prefix not in self._all_decls:
+                    self._all_decls[prefix] = {}
+                self._all_decls[prefix][num] = newnum
 
-        if line == 'entry:\n':
-            self._seen_all_decls = True
-        else:
-            if self._seen_all_decls:
-                # Look for uses of decls
-                for m in list(re.finditer('\s*(\S*)_([0-9]+)', line)):
+    def _remap_decls(self):
+        for i, line in enumerate(self.lines):
+            if self.verbose:
+                print('OLD LINE: %s' % repr(line))
+
+            # Look for uses of decls
+            for m in list(re.finditer('\s*(\S*)_([0-9]+)', line)):
+                if self.verbose:
                     print('MATCH: %s' % (m.groups(),))
-                    prefix = m.group(1)
-                    num = int(m.group(2))
-                    if prefix not in self._all_decls:
-                        self._all_decls[prefix] = {}
-                    if num not in self._all_decls[prefix]:
-                        # Renumber in order of appearance, starting at 0:
-                        self._all_decls[prefix][num] = len(self._all_decls[prefix])
-                    line = line.replace('%s_%i' % (prefix, num),
-                                        '%s_%i' % (prefix, self._all_decls[prefix][num]))
+                prefix = m.group(1)
+                num = int(m.group(2))
+                if prefix not in self._all_decls:
+                    self._all_decls[prefix] = {}
+                if num not in self._all_decls[prefix]:
+                    # Renumber in order of appearance, starting at 0:
+                    self._all_decls[prefix][num] = len(self._all_decls[prefix])
+                newnum = self._all_decls[prefix][num]
+                line = line.replace('%s_%i' % (prefix, num),
+                                    '%s_%i' % (prefix, newnum))
+                if self.verbose:
                     print('NEW LINE: %s' % repr(line))
-            else:
-                m = re.match('^\s*(.*?)\s*(\S*)_([0-9]+);$', line)
-                if m:
-                    print('MATCH: %s' % (m.groups(),))
-                    type_, prefix, num = m.groups()
-                    num = int(num)
-                    if type_ not in self._decls_by_type:
-                        self._decls_by_type[type_] = {}
-                    if prefix not in self._decls_by_type[type_]:
-                        self._decls_by_type[type_][prefix] = {}
-                    newnum = len(self._decls_by_type[type_][prefix])
-                    self._decls_by_type[type_][prefix][num] = newnum
-                    if prefix not in self._all_decls:
-                        self._all_decls[prefix] = {}
-                    self._all_decls[prefix][num] = newnum
-                    line = line.replace('%s_%i' % (prefix, num),
-                                        '%s_%i' % (prefix, self._all_decls[prefix][num]))
-        self.lines.append(line)
+
+            self.lines[i] = line
 
 def load_dump(path):
     d = Dump(path)
